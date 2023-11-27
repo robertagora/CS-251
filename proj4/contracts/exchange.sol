@@ -30,6 +30,9 @@ contract TokenExchange is Ownable {
     // Liquidity pool shares
     mapping(address => uint) private lps;
 
+    // EXTRA CREDIT: Fees owed to liquidity providers
+    mapping(address => uint) private fee_sum_owed;
+ 
     // For Extra Credit only: to loop through the keys of the lps mapping
     address[] private lp_providers;      
 
@@ -152,6 +155,9 @@ contract TokenExchange is Ownable {
         lps[msg.sender] = old_share + new_share;
         total_shares = total_shares + new_share;
         k = (token_to_add + token_reserves) * (msg.value + eth_reserves);
+
+        // EXTRA CREDIT: 
+        feesAddLiquidity();
     }
 
 
@@ -192,6 +198,9 @@ contract TokenExchange is Ownable {
         lps[msg.sender] = lps[msg.sender] - share_to_remove;
         total_shares = total_shares - share_to_remove;
         k = (token_reserves - amountToken) * (eth_reserves - amountETH);
+
+        // Extra Credit: 
+        feesAddLiquidity();
     }
 
     // Function removeAllLiquidity: Removes all liquidity that msg.sender is entitled to withdraw
@@ -222,8 +231,42 @@ contract TokenExchange is Ownable {
         total_shares = total_shares - lps[msg.sender];
         lps[msg.sender] = 0;
         k = (token_reserves - tokenAmount) * (eth_reserves - ethAmount);
+
+        // Extra Credit:
+        sharesRemoveLiquidity();
     }
+
+
     /***  Define additional functions for liquidity fees here as needed ***/
+
+    /* ========================= Extra Credit =========================  */ 
+
+    // Function, update mapping when adding liquidity
+
+    function feesAddLiquidity() external payable{
+        // Shares are updated in the swap function.
+        // Now, we need to update the fees owed based on the shares at this given time.
+        uint old_fees_owed = fee_sum_owed[msg.sender];
+        uint new_fees_owed = (lps[msg.sender]/total_shares * eth_fee_reserves);
+        // Since this function is called every time liquidity is added, we are able to simply update a mapping of fees owed. 
+        fee_sum_owed[msg.sender] = old_fees_owed + new_fees_owed;
+    }
+
+    // Function, update mapping when removing liquidity
+
+    function sharesRemoveLiquidity(uint share_to_remove) external{
+        uint old = lps[msg.sender];
+        uint updated_shares = old - share_to_remove;
+        lps[msg.sender] = old - updated_shares;
+    }
+
+    function payFees() external{
+        uint fees = fee_sum_owed[msg.sender];
+        payable(msg.sender).transfer(fees);
+
+        // Since the fees are paid out, set owed fees to 0.
+        fee_sum_owed[msg.sender] = 0;
+    }
 
 
     /* ========================= Swap Functions =========================  */ 
@@ -236,6 +279,9 @@ contract TokenExchange is Ownable {
         nonReentrant
     {
         /******* TODO: Implement this function *******/
+        /*** CHECK FOR MIMIMUMS */
+        require(eth_reserves > 1 && token_reserves > 1, "The minimum reserves to perform a swap are not available.");
+
         // step0: 
         uint rate = TokenOverEthRate();
         // console.log("rate = ");
@@ -271,6 +317,9 @@ contract TokenExchange is Ownable {
         nonReentrant
     {
         /******* TODO: Implement this function *******/
+        /*** CHECK FOR MIMIMUMS */
+        require(eth_reserves > 1 && token_reserves > 1, "The minimum reserves to perform a swap are not available.");
+        
         // step0: compute exchange rate 
         uint rate = EthOverTokenRate();
         // console.log("rate = ");
